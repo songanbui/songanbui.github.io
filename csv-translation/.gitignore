@@ -1,3 +1,5 @@
 .idea
 assets
 results
+node_modules
+package-lock.json
