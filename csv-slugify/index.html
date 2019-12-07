@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CSV Slugify tool</title>
+
+    <!--Utilities-->
+    <script src="vendor/papaparse.min.js"></script> <!--https://www.papaparse.com/-->
+    <script src="vendor/encoding.min.js"></script> <!--https://github.com/polygonplanet/encoding.js-->
+    <script src="vendor/filesaver.js"></script> <!--https://github.com/eligrey/FileSaver.js-->
+    <script src="vendor/kuroshiro.min.js"></script> <!--https://github.com/hexenq/kuroshiro-->
+    <script src="vendor/kuroshiro-analyzer-kuromoji.min.js"></script> <!--https://github.com/hexenq/kuroshiro-analyzer-kuromoji-->
+    <script src="vendor/transliteration.js"></script> <!--https://github.com/dzcpy/transliteration-->
+    <script src="lib/index.js"></script>
+
+    <!--CSS-->
+    <link rel="stylesheet" href="vendor/pure-min.css"> <!--https://unpkg.com/purecss@1.0.0/build/pure-min.css-->
+    <link rel="stylesheet" href="lib/index.css">
+    <link rel="stylesheet" href="lib/loadingmask.css">
+</head>
+<body>
+
+    <div id="title"><span>CSV Slugify Tool</span></div>
+
+    <div id="main">
+        <div id="inputs" class="pure-form">
+
+            <div id="input-content" class="container">
+                <input class="input-path" type="text" placeholder="Select Content CSV file..." readonly>
+                <button class="input-button pure-button">Browse</button>
+                <input class="input-file" type="file" accept=".csv"/>
+            </div>
+
+            <div id="input-dictionary" class="container">
+                <input class="input-path" type="text" placeholder="Select Dictionary CSV file..." readonly>
+                <button class="input-button pure-button">Browse</button>
+                <input class="input-file" type="file" accept=".csv"/>
+            </div>
+
+            <div id="input-encoding" class="container">
+                <label for="select-encoding">Select Encoding of output file</label>
+                <select id="select-encoding" class="pure-input-1-2">
+                    <option value="SJIS">Shift-JIS</option>
+                    <option value="UTF8" selected>UTF-8</option>
+                </select>
+            </div>
+
+            <div id="input-quotechar" class="container">
+                <label for="select-quotechat">Select the Quotechar</label>
+                <input id="select-quotechar" class="input-text" type="text" maxlength="1" value="&quot;" size="1" required />
+            </div>
+
+        </div>
+        <div id="submit" class="pure-form">
+            <button id="submit-button" class="pure-button">Slugify</button>
+        </div>
+
+        <div id="loading-mask"></div>
+    </div>
+
+</body>
+</html>

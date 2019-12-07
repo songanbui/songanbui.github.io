@@ -1,0 +1,21 @@
+{
+    "rules": {
+        "no-console": "off",
+        "linebreak-style": "off",
+        "max-len": [1, 200],
+        "no-underscore-dangle": "off",
+        "no-plusplus": "off"
+    },
+    "env": {
+        "browser": true,
+        "es6": true
+    },
+    "globals": {
+        "Papa": true,
+        "Kuroshiro": true,
+        "KuromojiAnalyzer": true,
+        "Encoding": true,
+        "saveAs": true
+    },
+    "extends": "airbnb"
+}

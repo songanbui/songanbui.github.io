@@ -6,7 +6,22 @@
   License: MIT
 */
 
-const _findInDictionary = function _findInDictionary(value, dictionary) {
+/**
+ * Parse an Array of CSV Files into an Array of CSV Object (Papaparse).
+ * @param {Array<File>} files
+ * @returns {Promise}
+ * @private
+ */
+const _parseCSVFiles = async (files) => {
+  const parsePromises = files.map(file => new Promise(((resolve) => {
+    Papa.parse(file, {
+      complete: resolve,
+    });
+  })));
+  return Promise.all(parsePromises);
+};
+
+const _findInDictionary = (value, dictionary) => {
   let result = value;
   // Check value is not empty string
   if (typeof value === 'string' && value !== '') {
@@ -41,7 +56,7 @@ const _findInDictionary = function _findInDictionary(value, dictionary) {
   return result;
 };
 
-const _translateUnit = function _translateUnit(currentUnit, dictionary) {
+const _translateUnit = (currentUnit, dictionary) => {
   const translatedItem = JSON.parse(JSON.stringify(currentUnit));
 
   switch (currentUnit.type.toLowerCase()) {
@@ -134,34 +149,13 @@ const _translateUnit = function _translateUnit(currentUnit, dictionary) {
 
 /**
  * Translate a CSV content file using a CSV dictionary file.
- * @param {File} contentFile
- * @param {File} dictionaryFile
+ * @param {Array} content
+ * @param {Array} dictionary
  * @param {String} contentFormat - the CSV format of the contentFile
  * @return {Promise}
  * @private
  */
-const _translate = function _translate(contentFile, dictionaryFile, contentFormat) {
-  /** ---- * */
-  /** Parse CSV files * */
-  /** ---- * */
-  const parsePromises = [];
-
-  // Content
-  const parseContent = new Promise(((resolve) => {
-    Papa.parse(contentFile, {
-      complete: resolve,
-    });
-  }));
-  parsePromises.push(parseContent);
-
-  // Dictionary
-  const parseDictionary = new Promise(((resolve) => {
-    Papa.parse(dictionaryFile, {
-      complete: resolve,
-    });
-  }));
-  parsePromises.push(parseDictionary);
-
+const _translate = (content, dictionary, contentFormat) => {
   // Compute options specific to CSV format
   let startIndex = 0; // Index of row from where to start the translation
   switch (contentFormat) {
@@ -174,111 +168,190 @@ const _translate = function _translate(contentFile, dictionaryFile, contentForma
       break;
   }
 
-  return Promise.all(parsePromises).then((results) => {
-    /** ---- * */
-    /** Reorder dictionary by biggest length value * */
-    /** ---- * */
-    const dictionary = results[1].data;
-    dictionary.sort((a, b) => b[0].length - a[0].length);
+  /** ---- * */
+  /** Reorder dictionary by biggest length value * */
+  /** ---- * */
+  dictionary.sort((a, b) => b[0].length - a[0].length);
 
-    /** ---- * */
-    /** Translation algorithm * */
-    /** ---- * */
-    const content = results[0].data;
-    const translation = content.slice(0, startIndex);
-    for (let r = startIndex; r < content.length; r++) {
-      const currentRow = content[r];
-      const translatedRow = [];
+  /** ---- * */
+  /** Translation algorithm * */
+  /** ---- * */
+  const translation = content.slice(0, startIndex);
+  for (let r = startIndex; r < content.length; r++) {
+    const currentRow = content[r];
+    const translatedRow = [];
 
-      for (let c = 0; c < currentRow.length; c++) {
-        const currentCell = currentRow[c];
-        let translatedCell;
+    for (let c = 0; c < currentRow.length; c++) {
+      const currentCell = currentRow[c];
+      let translatedCell;
 
-        // Check if cell is empty
-        if (currentCell === '') {
-          translatedCell = currentCell;
-        } else {
-          // Check if cell is multi-line
-          const lines = currentCell.split('\n');
-          if (lines.length > 1) {
-            const translatedLines = [];
-            for (let l = 0; l < lines.length; l++) {
-              const currentLine = lines[l];
-              let translatedLine = '';
+      // Check if cell is empty
+      if (currentCell === '') {
+        translatedCell = currentCell;
+      } else {
+        // Check if cell is multi-line
+        const lines = currentCell.split('\n');
+        if (lines.length > 1) {
+          const translatedLines = [];
+          for (let l = 0; l < lines.length; l++) {
+            const currentLine = lines[l];
+            let translatedLine = '';
 
-              // Check if line is empty
-              if (currentLine === '') {
-                translatedLine = currentLine;
-              } else {
-                // Try to parse the line as JSON
-                try {
-                  const parsedLine = JSON.parse(currentLine);
+            // Check if line is empty
+            if (currentLine === '') {
+              translatedLine = currentLine;
+            } else {
+              // Try to parse the line as JSON
+              try {
+                const parsedLine = JSON.parse(currentLine);
 
-                  // Check if parsed object is an Array
-                  if (Array.isArray(parsedLine)) {
-                    // Check all units are object formatted in an expected way
-                    const valid = parsedLine.every(unit => typeof unit === 'object' && typeof unit.type === 'string');
-                    if (valid) {
-                      // Translate each unit.content
-                      const translatedArray = [];
-                      for (let pl = 0; pl < parsedLine.length; pl++) {
-                        const currentUnit = parsedLine[pl];
-                        translatedArray.push(_translateUnit(currentUnit, dictionary));
-                      }
-                      translatedLine = JSON.stringify(translatedArray);
-                    } else {
-                      // Not expected (no implementation). Keep as-is.
-                      translatedLine = currentLine;
+                // Check if parsed object is an Array
+                if (Array.isArray(parsedLine)) {
+                  // Check all units are object formatted in an expected way
+                  const valid = parsedLine.every(unit => typeof unit === 'object' && typeof unit.type === 'string');
+                  if (valid) {
+                    // Translate each unit.content
+                    const translatedArray = [];
+                    for (let pl = 0; pl < parsedLine.length; pl++) {
+                      const currentUnit = parsedLine[pl];
+                      translatedArray.push(_translateUnit(currentUnit, dictionary));
                     }
-                  } else if (typeof parsedLine === 'object') { // Check if parsed object is an Object
-                    translatedLine = JSON.stringify(_translateUnit(parsedLine, dictionary));
+                    translatedLine = JSON.stringify(translatedArray);
                   } else {
-                    // Translate value as-is
-                    translatedLine = _findInDictionary(currentLine, dictionary);
+                    // Not expected (no implementation). Keep as-is.
+                    translatedLine = currentLine;
                   }
-                } catch (error) {
+                } else if (typeof parsedLine === 'object') { // Check if parsed object is an Object
+                  translatedLine = JSON.stringify(_translateUnit(parsedLine, dictionary));
+                } else {
                   // Translate value as-is
                   translatedLine = _findInDictionary(currentLine, dictionary);
                 }
+              } catch (error) {
+                // Translate value as-is
+                translatedLine = _findInDictionary(currentLine, dictionary);
               }
-
-              translatedLines.push(translatedLine);
             }
-            translatedCell = translatedLines.join('\n');
-          } else {
-            // Translate value as-is
-            translatedCell = _findInDictionary(currentCell, dictionary);
-          }
-        }
 
-        translatedRow.push(translatedCell);
+            translatedLines.push(translatedLine);
+          }
+          translatedCell = translatedLines.join('\n');
+        } else {
+          // Translate value as-is
+          translatedCell = _findInDictionary(currentCell, dictionary);
+        }
       }
 
-      translation.push(translatedRow);
+      translatedRow.push(translatedCell);
     }
-    return translation;
-  });
+
+    translation.push(translatedRow);
+  }
+  return translation;
 };
 
 /**
  * Handler of input 'change' event (i.e once a file has been selected).
  * @param {Element} element - Either context(#input-content) or dictionary(#input-dictionary)
+ * @returns {Function} onDictionaryFileSelection
  * @private
  */
-const _onFileSelection = function _onFileSelection(element) {
-  return function onDictionaryFileSelection(event) {
-    const label = element.getElementsByClassName('input-path')[0];
+const _onFileSelection = (element => function onDictionaryFileSelection(event) {
+  const label = element.getElementsByClassName('input-path')[0];
 
-    // Check a valid file has been selected
-    if (event.currentTarget.files.length === 1 && event.currentTarget.files[0] instanceof File) {
-      // Update input-path (label)
-      const file = event.currentTarget.files[0];
-      label.value = file.name;
-      label.classList.remove('error');
+  // Check a valid file has been selected
+  if (event.currentTarget.files.length === 1 && event.currentTarget.files[0] instanceof File) {
+    // Update input-path (label)
+    const file = event.currentTarget.files[0];
+    label.value = file.name;
+    label.classList.remove('error');
+  } else {
+    label.classList.add('error');
+  }
+});
+
+/**
+ * Handler of button 'submit' event.
+ * @returns {Promise<void>}
+ * @private
+ */
+const _onSubmit = async () => {
+  // Content CSV
+  const content = document.getElementById('input-content');
+  const contentInput = content.getElementsByClassName('input-file')[0];
+
+  // Dictionary CSV
+  const dictionary = document.getElementById('input-dictionary');
+  const dictionaryInput = dictionary.getElementsByClassName('input-file')[0];
+
+  let error = 0;
+  // Check a valid content file has been selected
+  if (contentInput.files.length !== 1 || !(contentInput.files[0] instanceof File)) {
+    error++;
+    const contentLabel = content.getElementsByClassName('input-path')[0];
+    contentLabel.classList.add('error');
+  }
+
+  // Check a valid content file has been selected
+  if (dictionaryInput.files.length !== 1 || !(dictionaryInput.files[0] instanceof File)) {
+    error++;
+    const dictionaryLabel = dictionary.getElementsByClassName('input-path')[0];
+    dictionaryLabel.classList.add('error');
+  }
+
+  if (error === 0) {
+    // Set loading mask
+    const loadingMask = document.getElementById('loading-mask');
+    loadingMask.classList.add('active');
+
+    // Check Input CSV format
+    const formatSelector = document.getElementById('select-format');
+    const format = formatSelector.value;
+
+    // Parse files
+    const files = [contentInput.files[0], dictionaryInput.files[0]];
+    const parsedCSV = await _parseCSVFiles(files);
+
+    // Translate
+    const translation = await _translate(parsedCSV[0].data, parsedCSV[1].data, format);
+
+    // Check selected quoteChar
+    const quoteCharInput = document.getElementById('input-quotechar').getElementsByClassName('input-text')[0];
+    const quoteChar = quoteCharInput.value;
+
+    // Parse back to CSV string
+    const translatedCSV = Papa.unparse(translation, {
+      quotes: false,
+      quoteChar: (quoteChar.length === 1) ? quoteChar : '"',
+    });
+
+    // Check selected encoding
+    const encodingSelector = document.getElementById('select-encoding');
+    const encoding = encodingSelector.value;
+
+    let fileData;
+    const fileOpts = {};
+    if (encoding === 'SJIS') {
+      // Encode in Shift-JIS
+      const strArray = Encoding.stringToCode(translatedCSV);
+      const sjisArray = Encoding.convert(strArray, 'SJIS', 'UNICODE');
+      fileData = new Uint8Array(sjisArray);
+      fileOpts.type = 'text/csv';
     } else {
-      label.classList.add('error');
+      fileData = translatedCSV;
+      fileOpts.encoding = 'UTF-8';
+      fileOpts.type = 'text/csv;charset=UTF-8';
     }
-  };
+
+    // Download as a CSV file
+    const universalBOM = '\uFEFF';
+    const csvFile = new Blob([universalBOM + fileData], fileOpts);
+    const fileName = `${contentInput.files[0].name.substring(0, contentInput.files[0].name.length - 4)}_TRANSLATED.csv`;
+    saveAs(csvFile, fileName); // FileSaver
+
+    // Unset loading mask
+    loadingMask.classList.remove('active');
+  }
 };
 
 const init = function init() {
@@ -314,72 +387,7 @@ const init = function init() {
   /** Handle translate button * */
   /** ---- * */
   const submit = document.getElementById('submit-button');
-  submit.addEventListener('click', () => {
-    let error = 0;
-    // Check a valid content file has been selected
-    if (contentInput.files.length !== 1 || !(contentInput.files[0] instanceof File)) {
-      error++;
-      const contentLabel = content.getElementsByClassName('input-path')[0];
-      contentLabel.classList.add('error');
-    }
-
-    // Check a valid content file has been selected
-    if (dictionaryInput.files.length !== 1 || !(dictionaryInput.files[0] instanceof File)) {
-      error++;
-      const dictionaryLabel = dictionary.getElementsByClassName('input-path')[0];
-      dictionaryLabel.classList.add('error');
-    }
-
-    if (error === 0) {
-      // Set loading mask
-      const loadingMask = document.getElementById('loading-mask');
-      loadingMask.classList.add('active');
-
-      // Check Input CSV format
-      const formatSelector = document.getElementById('select-format');
-      const format = formatSelector.value;
-
-      // Translate
-      _translate(contentInput.files[0], dictionaryInput.files[0], format).then((translation) => {
-        // Check selected quoteChar
-        const quoteCharInput = document.getElementById('input-quotechar').getElementsByClassName('input-text')[0];
-        const quoteChar = quoteCharInput.value;
-
-        // Parse back to CSV string
-        const translatedCSV = Papa.unparse(translation, {
-          quotes: false,
-          quoteChar: (quoteChar.length === 1) ? quoteChar : '"',
-        });
-
-        // Check selected encoding
-        const encodingSelector = document.getElementById('select-encoding');
-        const encoding = encodingSelector.value;
-
-        let fileData;
-        const fileOpts = {};
-        if (encoding === 'SJIS') {
-          // Encode in Shift-JIS
-          const strArray = Encoding.stringToCode(translatedCSV);
-          const sjisArray = Encoding.convert(strArray, 'SJIS', 'UNICODE');
-          fileData = new Uint8Array(sjisArray);
-          fileOpts.type = 'text/csv';
-        } else {
-          fileData = translatedCSV;
-          fileOpts.encoding = 'UTF-8';
-          fileOpts.type = 'text/csv;charset=UTF-8';
-        }
-
-        // Download as a CSV file
-        const universalBOM = '\uFEFF';
-        const csvFile = new Blob([universalBOM + fileData], fileOpts);
-        const fileName = `${contentInput.files[0].name.substring(0, contentInput.files[0].name.length - 4)}_TRANSLATED.csv`;
-        saveAs(csvFile, fileName); // FileSaver
-      }).finally(() => {
-        // Unset loading mask
-        loadingMask.classList.remove('active');
-      });
-    }
-  });
+  submit.addEventListener('click', _onSubmit);
 };
 
 window.addEventListener('load', init);
