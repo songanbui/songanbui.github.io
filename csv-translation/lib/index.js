@@ -57,8 +57,6 @@ const _translateUnit = function _translateUnit(currentUnit, dictionary) {
       try {
         // Parse unit.content (expect an Array)
         const imageContents = JSON.parse(currentUnit.content);
-        console.log('>>>parse images>>>');
-        console.log(imageContents);
 
         if (Array.isArray(imageContents) && imageContents.length > 0) {
           const translatedImageContents = [];
@@ -82,8 +80,6 @@ const _translateUnit = function _translateUnit(currentUnit, dictionary) {
       try {
         // Parse unit.content (expect an Array)
         const linkContents = JSON.parse(currentUnit.content);
-        console.log('>>>parse links>>>');
-        console.log(linkContents);
 
         if (Array.isArray(linkContents) && linkContents.length > 0) {
           const translatedLinkContents = [];
@@ -103,7 +99,6 @@ const _translateUnit = function _translateUnit(currentUnit, dictionary) {
       break;
     }
     case 'html': {
-      console.log('>>>>>>>>>>>> html >>>>>>>>>>');
       const noLineBreak = currentUnit.content.replace(/(<br>\n|<br>)/gm, '');
       // noLineBreak = noLineBreak.content.replace(/(<br>)/gm, '');
       // var noLineBreak = currentUnit['content'].replace(/(\r\n|\n|\r|<br>)/gm, "");
@@ -111,7 +106,6 @@ const _translateUnit = function _translateUnit(currentUnit, dictionary) {
       break;
     }
     case 'rich-text': {
-      console.log('>>>>>>>>>>>> rich-text >>>>>>>>>>');
       const noLineBreak = currentUnit.content.replace(/(<br>\n|<br>)/gm, '');
       // noLineBreak = noLineBreak.content.replace(/(<br>)/gm, '');
       // var noLineBreak = currentUnit['content'].replace(/(\r\n|\n|\r|<br>)/gm, "");
@@ -142,10 +136,11 @@ const _translateUnit = function _translateUnit(currentUnit, dictionary) {
  * Translate a CSV content file using a CSV dictionary file.
  * @param {File} contentFile
  * @param {File} dictionaryFile
+ * @param {String} contentFormat - the CSV format of the contentFile
  * @return {Promise}
  * @private
  */
-const _translate = function _translate(contentFile, dictionaryFile) {
+const _translate = function _translate(contentFile, dictionaryFile, contentFormat) {
   /** ---- * */
   /** Parse CSV files * */
   /** ---- * */
@@ -167,21 +162,31 @@ const _translate = function _translate(contentFile, dictionaryFile) {
   }));
   parsePromises.push(parseDictionary);
 
+  // Compute options specific to CSV format
+  let startIndex = 0; // Index of row from where to start the translation
+  switch (contentFormat) {
+    case 'PowerCMS':
+      startIndex = 1;
+      break;
+    default:
+    case 'Standard':
+      startIndex = 0;
+      break;
+  }
+
   return Promise.all(parsePromises).then((results) => {
     /** ---- * */
     /** Reorder dictionary by biggest length value * */
     /** ---- * */
     const dictionary = results[1].data;
-    console.log(dictionary);
     dictionary.sort((a, b) => b[0].length - a[0].length);
-    console.log(dictionary);
 
     /** ---- * */
     /** Translation algorithm * */
     /** ---- * */
-    const content = results[0].data; console.log(content);
-    const translation = [content[0]];
-    for (let r = 1; r < content.length; r++) {
+    const content = results[0].data;
+    const translation = content.slice(0, startIndex);
+    for (let r = startIndex; r < content.length; r++) {
       const currentRow = content[r];
       const translatedRow = [];
 
@@ -196,9 +201,6 @@ const _translate = function _translate(contentFile, dictionaryFile) {
           // Check if cell is multi-line
           const lines = currentCell.split('\n');
           if (lines.length > 1) {
-            console.log('>>>lines>>>');
-            console.log(lines);
-
             const translatedLines = [];
             for (let l = 0; l < lines.length; l++) {
               const currentLine = lines[l];
@@ -214,9 +216,6 @@ const _translate = function _translate(contentFile, dictionaryFile) {
 
                   // Check if parsed object is an Array
                   if (Array.isArray(parsedLine)) {
-                    console.log('>>>parse line>>>');
-                    console.log(parsedLine);
-
                     // Check all units are object formatted in an expected way
                     const valid = parsedLine.every(unit => typeof unit === 'object' && typeof unit.type === 'string');
                     if (valid) {
@@ -226,8 +225,6 @@ const _translate = function _translate(contentFile, dictionaryFile) {
                         const currentUnit = parsedLine[pl];
                         translatedArray.push(_translateUnit(currentUnit, dictionary));
                       }
-                      console.log('>>>translatedArray>>>');
-                      console.log(translatedArray);
                       translatedLine = JSON.stringify(translatedArray);
                     } else {
                       // Not expected (no implementation). Keep as-is.
@@ -259,9 +256,6 @@ const _translate = function _translate(contentFile, dictionaryFile) {
 
       translation.push(translatedRow);
     }
-
-    console.log('>>>translation>>>');
-    console.log(translation);
     return translation;
   });
 };
@@ -341,14 +335,21 @@ const init = function init() {
       const loadingMask = document.getElementById('loading-mask');
       loadingMask.classList.add('active');
 
+      // Check Input CSV format
+      const formatSelector = document.getElementById('select-format');
+      const format = formatSelector.value;
+
       // Translate
-      _translate(contentInput.files[0], dictionaryInput.files[0]).then((translation) => {
+      _translate(contentInput.files[0], dictionaryInput.files[0], format).then((translation) => {
+        // Check selected quoteChar
+        const quoteCharInput = document.getElementById('input-quotechar').getElementsByClassName('input-text')[0];
+        const quoteChar = quoteCharInput.value;
+
         // Parse back to CSV string
         const translatedCSV = Papa.unparse(translation, {
-          quotes: true,
+          quotes: false,
+          quoteChar: (quoteChar.length === 1) ? quoteChar : '"',
         });
-        console.log('>>> translated csv >>>');
-        console.log(translatedCSV);
 
         // Check selected encoding
         const encodingSelector = document.getElementById('select-encoding');
@@ -369,7 +370,8 @@ const init = function init() {
         }
 
         // Download as a CSV file
-        const csvFile = new Blob([fileData], fileOpts);
+        const universalBOM = '\uFEFF';
+        const csvFile = new Blob([universalBOM + fileData], fileOpts);
         const fileName = `${contentInput.files[0].name.substring(0, contentInput.files[0].name.length - 4)}_TRANSLATED.csv`;
         saveAs(csvFile, fileName); // FileSaver
       }).finally(() => {

@@ -25,7 +25,8 @@
             <div id="input-format" class="container">
                 <label for="select-format">Select CSV format of input file</label>
                 <select id="select-format" class="pure-input-1-2">
-                    <option value="SJIS" selected>PowerCMS</option>
+                    <option value="Standard" selected>Standard</option>
+                    <option value="PowerCMS" selected>PowerCMS</option>
                     <!--<option value="UTF8">Movable</option>-->
                 </select>
             </div>
@@ -48,6 +49,11 @@
                     <option value="SJIS">Shift-JIS</option>
                     <option value="UTF8" selected>UTF-8</option>
                 </select>
+            </div>
+
+            <div id="input-quotechar" class="container">
+                <label for="select-encoding">Select the Quotechar</label>
+                <input class="input-text" type="text" maxlength="1" value="&quot;" size="1" required />
             </div>
 
         </div>
