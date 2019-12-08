@@ -258,16 +258,29 @@ const _slugify = async function _slugify(content, kuroshiro) {
     const currentRow = content[r];
     const translatedRow = [];
 
+    // Find the last non empty-cell
+    const cloneRow = [...currentRow];
+    cloneRow.reverse();
+    let lastNonEmptyCellIndex = 0;
+    // eslint-disable-next-line no-loop-func
+    cloneRow.some((cell, index) => {
+      if (cell !== '') {
+        lastNonEmptyCellIndex = cloneRow.length - index;
+        return true;
+      }
+      return false;
+    });
+
     // For each cell in a row
     for (let c = 0; c < currentRow.length; c++) {
       const currentCell = currentRow[c];
-      let translatedCell;
+      let translatedCell = '';
 
-      // Check if cell is empty
+      // If cell is empty
       if (currentCell === '') {
-        // Copy value from the previous row
-        translatedCell = currentCell;
-        if (r > 0) {
+        // And if cell is before the last non empty cell of the row,
+        // copy value from the previous row
+        if (r > 0 && c < lastNonEmptyCellIndex) {
           translatedCell = translation[(r - 1)][c];
         }
       } else {
