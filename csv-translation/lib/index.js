@@ -158,9 +158,14 @@ const _translateUnit = (currentUnit, dictionary) => {
 const _translate = (content, dictionary, contentFormat) => {
   // Compute options specific to CSV format
   let startIndex = 0; // Index of row from where to start the translation
+  let multipleLanguages = true;
   switch (contentFormat) {
     case 'PowerCMS':
       startIndex = 1;
+      break;
+    case 'MultipleLanguages':
+      startIndex = 0;
+      multipleLanguages = true;
       break;
     default:
     case 'Standard':
@@ -168,10 +173,26 @@ const _translate = (content, dictionary, contentFormat) => {
       break;
   }
 
+  // If multiple languages, split the dictionaries per language
+  let dictionaries = [];
+  if (multipleLanguages) {
+    const numberOfLanguages = dictionary[0].length - 1;
+    for (let d = 0; d < numberOfLanguages; d++) {
+      let dic = dictionary.map((fullDic) => {
+        return [fullDic[0], fullDic[d+1]];
+      });
+      dictionaries.push(dic);
+    }
+  } else {
+    dictionaries.push(dictionary);
+  }
+
   /** ---- * */
   /** Reorder dictionary by biggest length value * */
   /** ---- * */
-  dictionary.sort((a, b) => b[0].length - a[0].length);
+  dictionaries.forEach((dictionary) => {
+    dictionary.sort((a, b) => b[0].length - a[0].length);
+  });
 
   /** ---- * */
   /** Translation algorithm * */
@@ -181,69 +202,78 @@ const _translate = (content, dictionary, contentFormat) => {
     const currentRow = content[r];
     const translatedRow = [];
 
-    for (let c = 0; c < currentRow.length; c++) {
-      const currentCell = currentRow[c];
-      let translatedCell;
+    // If multiple languages, we only translate the first column of the Content CSV and keep it in result
+    if (multipleLanguages) {
+      translatedRow.push(currentRow[0]);
+    }
 
-      // Check if cell is empty
-      if (currentCell === '') {
-        translatedCell = currentCell;
-      } else {
-        // Check if cell is multi-line
-        const lines = currentCell.split('\n');
-        if (lines.length > 1) {
-          const translatedLines = [];
-          for (let l = 0; l < lines.length; l++) {
-            const currentLine = lines[l];
-            let translatedLine = '';
+    // Translate each cell of the row
+    dictionaries.forEach((dictionary) => {
+      for (let c = 0; c < (multipleLanguages ? 1 : currentRow.length); c++) {
+        const currentCell = currentRow[c];
+        let translatedCell;
 
-            // Check if line is empty
-            if (currentLine === '') {
-              translatedLine = currentLine;
-            } else {
-              // Try to parse the line as JSON
-              try {
-                const parsedLine = JSON.parse(currentLine);
+        // Check if cell is empty
+        if (currentCell === '') {
+          translatedCell = currentCell;
+        } else {
+          // Check if cell is multi-line
+          const lines = currentCell.split('\n');
+          if (lines.length > 1) {
+            const translatedLines = [];
+            for (let l = 0; l < lines.length; l++) {
+              const currentLine = lines[l];
+              let translatedLine = '';
 
-                // Check if parsed object is an Array
-                if (Array.isArray(parsedLine)) {
-                  // Check all units are object formatted in an expected way
-                  const valid = parsedLine.every(unit => typeof unit === 'object' && typeof unit.type === 'string');
-                  if (valid) {
-                    // Translate each unit.content
-                    const translatedArray = [];
-                    for (let pl = 0; pl < parsedLine.length; pl++) {
-                      const currentUnit = parsedLine[pl];
-                      translatedArray.push(_translateUnit(currentUnit, dictionary));
+              // Check if line is empty
+              if (currentLine === '') {
+                translatedLine = currentLine;
+              } else {
+                // Try to parse the line as JSON
+                try {
+                  const parsedLine = JSON.parse(currentLine);
+
+                  // Check if parsed object is an Array
+                  if (Array.isArray(parsedLine)) {
+                    // Check all units are object formatted in an expected way
+                    const valid = parsedLine.every(unit => typeof unit === 'object' && typeof unit.type === 'string');
+                    if (valid) {
+                      // Translate each unit.content
+                      const translatedArray = [];
+                      for (let pl = 0; pl < parsedLine.length; pl++) {
+                        const currentUnit = parsedLine[pl];
+                        translatedArray.push(_translateUnit(currentUnit, dictionary));
+                      }
+                      translatedLine = JSON.stringify(translatedArray);
+                    } else {
+                      // Not expected (no implementation). Keep as-is.
+                      translatedLine = currentLine;
                     }
-                    translatedLine = JSON.stringify(translatedArray);
+                  } else if (typeof parsedLine === 'object') { // Check if parsed object is an Object
+                    translatedLine = JSON.stringify(_translateUnit(parsedLine, dictionary));
                   } else {
-                    // Not expected (no implementation). Keep as-is.
-                    translatedLine = currentLine;
+                    // Translate value as-is
+                    translatedLine = _findInDictionary(currentLine, dictionary);
                   }
-                } else if (typeof parsedLine === 'object') { // Check if parsed object is an Object
-                  translatedLine = JSON.stringify(_translateUnit(parsedLine, dictionary));
-                } else {
+                } catch (error) {
                   // Translate value as-is
                   translatedLine = _findInDictionary(currentLine, dictionary);
                 }
-              } catch (error) {
-                // Translate value as-is
-                translatedLine = _findInDictionary(currentLine, dictionary);
               }
-            }
 
-            translatedLines.push(translatedLine);
+              translatedLines.push(translatedLine);
+            }
+            translatedCell = translatedLines.join('\n');
+          } else {
+            // Translate value as-is
+            translatedCell = _findInDictionary(currentCell, dictionary);
           }
-          translatedCell = translatedLines.join('\n');
-        } else {
-          // Translate value as-is
-          translatedCell = _findInDictionary(currentCell, dictionary);
         }
+
+        translatedRow.push(translatedCell);
       }
 
-      translatedRow.push(translatedCell);
-    }
+    });
 
     translation.push(translatedRow);
   }
