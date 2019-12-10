@@ -13,7 +13,7 @@
  * @private
  */
 const _parseCSVFiles = async (files) => {
-  const parsePromises = files.map(file => new Promise(((resolve) => {
+  const parsePromises = files.map((file) => new Promise(((resolve) => {
     Papa.parse(file, {
       complete: resolve,
     });
@@ -201,7 +201,7 @@ const _translate = (content, dictionary, contentFormat) => {
                 // Check if parsed object is an Array
                 if (Array.isArray(parsedLine)) {
                   // Check all units are object formatted in an expected way
-                  const valid = parsedLine.every(unit => typeof unit === 'object' && typeof unit.type === 'string');
+                  const valid = parsedLine.every((unit) => typeof unit === 'object' && typeof unit.type === 'string');
                   if (valid) {
                     // Translate each unit.content
                     const translatedArray = [];
@@ -247,10 +247,11 @@ const _translate = (content, dictionary, contentFormat) => {
  * Slugify a CSV content file.
  * @param {Array} content - Content CSV
  * @param {Kuroshiro} kuroshiro
+ * @param {String} domain - the domain URL
  * @return {Promise}
  * @private
  */
-const _slugify = async function _slugify(content, kuroshiro) {
+const _slugify = async function _slugify(content, kuroshiro, domain) {
   const translation = [];
 
   // For each row of the CSV
@@ -301,6 +302,23 @@ const _slugify = async function _slugify(content, kuroshiro) {
     translation.push(translatedRow);
   }
 
+  // Compute all URLs for each row
+  translation.forEach((row) => {
+    let url = `${domain}`;
+    if (!domain.endsWith('/')) {
+      url += '/';
+    }
+    const nonEmptyValues = row.filter((cell) => cell !== '');
+    url = url.concat(nonEmptyValues.join('/'));
+
+    // If URL does not end with a specific substring, add '/'
+    const ignoreList = ['/', '.html', '.htm', '.php', '.js'];
+    if (ignoreList.every((ext) => !url.endsWith(ext))) {
+      url = url.concat('/');
+    }
+    row.splice(0, 0, url);
+  });
+
   return translation;
 };
 
@@ -310,7 +328,7 @@ const _slugify = async function _slugify(content, kuroshiro) {
  * @returns {Function} onDictionaryFileSelection
  * @private
  */
-const _onFileSelection = (element => function onDictionaryFileSelection(event) {
+const _onFileSelection = ((element) => function onDictionaryFileSelection(event) {
   const label = element.getElementsByClassName('input-path')[0];
 
   // Check a valid file has been selected
@@ -370,8 +388,12 @@ const _onSubmit = async (kuroshiro) => {
       toSlug = parsedCSV[0].data;
     }
 
+    // Check domain
+    const domainInput = document.getElementById('input-domain').getElementsByClassName('input-text')[0];
+    const domain = domainInput.value;
+
     // Slugify
-    const translation = await _slugify(toSlug, kuroshiro);
+    const translation = await _slugify(toSlug, kuroshiro, domain);
 
     // Check selected quoteChar
     const quoteCharInput = document.getElementById('input-quotechar').getElementsByClassName('input-text')[0];
