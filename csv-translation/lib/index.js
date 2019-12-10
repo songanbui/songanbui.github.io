@@ -158,7 +158,7 @@ const _translateUnit = (currentUnit, dictionary) => {
 const _translate = (content, dictionary, contentFormat) => {
   // Compute options specific to CSV format
   let startIndex = 0; // Index of row from where to start the translation
-  let multipleLanguages = true;
+  let multipleLanguages = false;
   switch (contentFormat) {
     case 'PowerCMS':
       startIndex = 1;
