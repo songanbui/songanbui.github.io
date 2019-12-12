@@ -21,6 +21,48 @@ const _parseCSVFiles = async (files) => {
   return Promise.all(parsePromises);
 };
 
+/**
+ * Split any cells containing the input string in separate rows.
+ * @param {Array} content - the CSV content
+ * @param {String|RegExp} subStr - the input string to split the cells into rows
+ * @private
+ */
+const _split = (content, subStr) => {
+  const result = [];
+
+  // For each row of the CSV
+  for (let r = 0; r < content.length; r++) {
+    const currentRow = content[r];
+
+    // Find the last non empty-cell
+    const cloneRow = [...currentRow];
+    cloneRow.reverse();
+    let lastNonEmptyCellIndex = 0;
+    // eslint-disable-next-line no-loop-func
+    cloneRow.some((cell, index) => {
+      if (cell !== '') {
+        lastNonEmptyCellIndex = cloneRow.length - index - 1;
+        return true;
+      }
+      return false;
+    });
+    const lastCell = currentRow[lastNonEmptyCellIndex];
+
+    const splits = lastCell.split(subStr);
+    if (splits.length > 1) {
+      splits.forEach((split) => {
+        const splitRow = [...currentRow];
+        splitRow[lastNonEmptyCellIndex] = split;
+        result.push(splitRow);
+      });
+    } else {
+      result.push([...currentRow]);
+    }
+  }
+
+  return result;
+};
+
 const _findInDictionary = (value, dictionary) => {
   let result = value;
   // Check value is not empty string
@@ -379,6 +421,14 @@ const _onSubmit = async (kuroshiro) => {
       files.push(dictionaryInput.files[0]);
     }
     const parsedCSV = await _parseCSVFiles(files);
+
+    // Check split by return carriage
+    const splitInput = document.getElementById('input-split').getElementsByClassName('input-checkbox')[0];
+    const split = splitInput.checked;
+    if (split) {
+      const contentCopy = [...parsedCSV[0].data];
+      parsedCSV[0].data = _split(contentCopy, /\r?\n/);
+    }
 
     // Translate if dictionary is provided
     let toSlug;
