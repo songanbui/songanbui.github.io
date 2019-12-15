@@ -1,0 +1,50 @@
+#title {
+    margin: 10px;
+    font-size: xx-large;
+}
+
+#main {
+    margin: 10px;
+    display:flex;
+    flex-direction: column;
+}
+
+div#inputs {
+    display: flex;
+    flex-direction: column;
+}
+
+div#inputs > .container {
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
+div#inputs > div#input-format > select#select-format {
+    margin-left: 10px;
+    width: 150px;
+}
+
+div#inputs > .container > input.input-file {
+    display: none;
+}
+
+div#inputs > .container > input.input-path {
+    width: 250px;
+}
+div#inputs > .container > input.input-path.error {
+    border-color: red;
+}
+
+div#inputs > .container > button {
+    width: 100px;
+}
+
+div#inputs > div#input-encoding > select#select-encoding {
+    margin-left: 10px;
+    width: 120px;
+}
+
+div#submit {
+    margin-top: 20px;
+
+}
