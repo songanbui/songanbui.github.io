@@ -127,7 +127,7 @@ const _onSubmit = async () => {
     // Download as a CSV file
     const universalBOM = '\uFEFF';
     const csvFile = new Blob([universalBOM + fileData], fileOpts);
-    const fileName = `${contentInput.files[0].name.substring(0, contentInput.files[0].name.length - 4)}_SLUGIFIED.csv`;
+    const fileName = `${contentInput.files[0].name.substring(0, contentInput.files[0].name.length - 4)}_REORDERED.csv`;
     saveAs(csvFile, fileName); // FileSaver
 
     // Unset loading mask
