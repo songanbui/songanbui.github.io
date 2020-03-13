@@ -152,10 +152,11 @@ const _translateUnit = (currentUnit, dictionary) => {
  * @param {Array} content
  * @param {Array} dictionary
  * @param {String} contentFormat - the CSV format of the contentFile
+ * @param {Boolean} autosplit - Whether to split multi-lines in dictionary
  * @return {Promise}
  * @private
  */
-const _translate = (content, dictionary, contentFormat) => {
+const _translate = (content, dictionary, contentFormat, autosplit) => {
   // Compute options specific to CSV format
   let startIndex = 0; // Index of row from where to start the translation
   let multipleLanguages = false;
@@ -185,6 +186,29 @@ const _translate = (content, dictionary, contentFormat) => {
     }
   } else {
     dictionaries.push(dictionary);
+  }
+
+  // Split dictionary cells containing multiple lines in 1 cell/line
+  if (autosplit === true) {
+    dictionaries.forEach((dictionary) => {
+
+      // Loop in dictionary translation
+      const length = dictionary.length;
+      for (let r = 0; r < length; r++) {
+        let current = dictionary[r][0];
+        let translation = dictionary[r][1];
+
+        if (current !== undefined && translation !== undefined) {
+          const currentSplits = current.split(/[\r\n]+/gm);
+          const translationSplits = translation.split(/[\r\n]+/gm);
+          if (currentSplits.length > 1 && currentSplits.length === translationSplits.length) {
+            for (let s = 0; s < currentSplits.length; s++) {
+              dictionary.push([currentSplits[s].trim(), translationSplits[s].trim()]);
+            }
+          }
+        }
+      }
+    });
   }
 
   /** ---- * */
@@ -338,12 +362,16 @@ const _onSubmit = async () => {
     const formatSelector = document.getElementById('select-format');
     const format = formatSelector.value;
 
+    // Check Autosplit
+    const autoSplitRadio = document.getElementById('radio-autosplit');
+    const autosplit = autoSplitRadio.checked;
+
     // Parse files
     const files = [contentInput.files[0], dictionaryInput.files[0]];
     const parsedCSV = await _parseCSVFiles(files);
 
     // Translate
-    const translation = await _translate(parsedCSV[0].data, parsedCSV[1].data, format);
+    const translation = await _translate(parsedCSV[0].data, parsedCSV[1].data, format, autosplit);
 
     // Check selected quoteChar
     const quoteCharInput = document.getElementById('input-quotechar').getElementsByClassName('input-text')[0];
