@@ -190,7 +190,7 @@ const _translate = (content, dictionary, contentFormat, autosplit) => {
 
   // Split dictionary cells containing multiple lines in 1 cell/line
   if (autosplit === true) {
-    dictionaries.forEach((dictionary) => {
+    dictionaries.forEach((dictionary, dicIndex) => {
 
       // Loop in dictionary translation
       const length = dictionary.length;
@@ -201,9 +201,13 @@ const _translate = (content, dictionary, contentFormat, autosplit) => {
         if (current !== undefined && translation !== undefined) {
           const currentSplits = current.split(/[\r\n]+/gm);
           const translationSplits = translation.split(/[\r\n]+/gm);
-          if (currentSplits.length > 1 && currentSplits.length === translationSplits.length) {
-            for (let s = 0; s < currentSplits.length; s++) {
-              dictionary.push([currentSplits[s].trim(), translationSplits[s].trim()]);
+          if (currentSplits.length > 1) {
+            if (currentSplits.length === translationSplits.length) {
+              for (let s = 0; s < currentSplits.length; s++) {
+                dictionary.push([currentSplits[s].trim(), translationSplits[s].trim()]);
+              }
+            } else {
+              console.error(`Autosplit error: could not split multi-lines cell on Column ${dicIndex+2} Row ${r+1} of the dictionary.`);
             }
           }
         }
