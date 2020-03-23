@@ -29,7 +29,7 @@ div#inputs > .container > input.input-file {
 }
 
 div#inputs > .container > input.input-path {
-  width: 250px;
+  width: 280px;
 }
 div#inputs > .container > input.input-path.error {
   border-color: red;
@@ -42,6 +42,12 @@ div#inputs > .container > button {
 div#inputs > div#input-encoding > select#select-encoding {
   margin-left: 10px;
   width: 120px;
+}
+
+div#inputs > div#input-escapechar > textarea.input-text {
+  min-width: 220px;
+  resize: horizontal;
+  height: 44px;
 }
 
 div#submit {

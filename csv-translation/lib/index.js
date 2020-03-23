@@ -7,18 +7,34 @@
 */
 
 /**
- * Parse an Array of CSV Files into an Array of CSV Object (Papaparse).
- * @param {Array<File>} files
+ * Parse an HTML file into a readable String.
+ * @param {File} file
  * @returns {Promise}
  * @private
  */
-const _parseCSVFiles = async (files) => {
-  const parsePromises = files.map(file => new Promise(((resolve) => {
+const _parseHTMLFile = async (file) => {
+  return new Promise((resolve) => {
+    const r = new FileReader();
+    r.onload = function (e) {
+      const contents = e.target.result;
+      resolve(contents);
+    };
+    r.readAsText(file);
+  });
+};
+
+/**
+ * Parse a CSV File into a CSV Object (Papaparse).
+ * @param {File} file
+ * @returns {Promise}
+ * @private
+ */
+const _parseCSVFile = async (file) => {
+  return new Promise(((resolve) => {
     Papa.parse(file, {
       complete: resolve,
     });
-  })));
-  return Promise.all(parsePromises);
+  }));
 };
 
 const _findInDictionary = (value, dictionary) => {
@@ -153,10 +169,11 @@ const _translateUnit = (currentUnit, dictionary) => {
  * @param {Array} dictionary
  * @param {String} contentFormat - the CSV format of the contentFile
  * @param {Boolean} autosplit - Whether to split multi-lines in dictionary
+ * @param {Array<String>} charsToEscape - Characters to be escaped in first position of each cell of dictionary
  * @return {Promise}
  * @private
  */
-const _translate = (content, dictionary, contentFormat, autosplit) => {
+const _translate = (content, dictionary, contentFormat, autosplit, charsToEscape) => {
   // Compute options specific to CSV format
   let startIndex = 0; // Index of row from where to start the translation
   let multipleLanguages = false;
@@ -209,6 +226,22 @@ const _translate = (content, dictionary, contentFormat, autosplit) => {
             } else {
               console.error(`Autosplit error: could not split multi-lines cell on Column ${dicIndex+2} Row ${r+1} of the dictionary.`);
             }
+          }
+        }
+      }
+    });
+  }
+
+  /** ---- * */
+  /** Escape characters on first position of each dictionary cell
+  /** ---- * */
+  if (charsToEscape.length > 0) {
+    dictionaries.forEach((dictionary, dicIndex) => {
+      // Loop in dictionary translation
+      for (let r = 0; r < dictionary.length; r++) {
+        for (let c = 0; c < dictionary[r].length; c++) {
+          if (dictionary[r][c] !== undefined && charsToEscape.indexOf(dictionary[r][c].charAt(0)) !== -1) {
+            dictionary[r][c] = dictionary[r][c].substr(1);
           }
         }
       }
@@ -370,22 +403,57 @@ const _onSubmit = async () => {
     const autoSplitRadio = document.getElementById('radio-autosplit');
     const autosplit = autoSplitRadio.checked;
 
-    // Parse files
-    const files = [contentInput.files[0], dictionaryInput.files[0]];
-    const parsedCSV = await _parseCSVFiles(files);
+    // Check EscapeChar
+    const escapeCharInput = document.getElementById('input-escapechar').getElementsByClassName('input-text')[0];
+    const escapeChars = escapeCharInput.value;
+    let charsToEscape = escapeChars.split('|');
+    if (charsToEscape.length === 1 && charsToEscape[0] === escapeChars) {
+      charsToEscape = escapeChars.split('｜');
+    }
+    charsToEscape = charsToEscape.filter(item => item);
+
+    // Parse content
+    let content;
+    switch (contentInput.files[0].type) {
+      case 'text/csv':
+      case 'application/vnd.ms-excel':
+        const parsedCSV = await _parseCSVFile(contentInput.files[0]);
+        content = parsedCSV.data;
+        break;
+      default:
+        const defaultParsed = await _parseHTMLFile(contentInput.files[0]);
+        content = [[defaultParsed]];
+        break;
+    }
+
+    // Parse dictionary
+    const dictionary = await _parseCSVFile(dictionaryInput.files[0]);
 
     // Translate
-    const translation = await _translate(parsedCSV[0].data, parsedCSV[1].data, format, autosplit);
+    const translation = await _translate(content, dictionary.data, format, autosplit, charsToEscape);
 
     // Check selected quoteChar
     const quoteCharInput = document.getElementById('input-quotechar').getElementsByClassName('input-text')[0];
     const quoteChar = quoteCharInput.value;
 
-    // Parse back to CSV string
-    const translatedCSV = Papa.unparse(translation, {
-      quotes: false,
-      quoteChar: (quoteChar.length === 1) ? quoteChar : '"',
-    });
+    // Check Data and Content-Type of output file
+    let data, fileContentType;
+    switch (contentInput.files[0].type) {
+      case 'text/csv':
+      case 'application/vnd.ms-excel':
+        // Parse back to CSV string
+        data = Papa.unparse(translation, {
+          quotes: false,
+          quoteChar: (quoteChar.length === 1) ? quoteChar : '"',
+        });
+        fileContentType = 'text/csv';
+        break;
+      default:
+        // Keep string as-is
+        data = translation;
+        fileContentType = contentInput.files[0].type;
+        break;
+    }
 
     // Check selected encoding
     const encodingSelector = document.getElementById('select-encoding');
@@ -395,20 +463,22 @@ const _onSubmit = async () => {
     const fileOpts = {};
     if (encoding === 'SJIS') {
       // Encode in Shift-JIS
-      const strArray = Encoding.stringToCode(translatedCSV);
+      const strArray = Encoding.stringToCode(data);
       const sjisArray = Encoding.convert(strArray, 'SJIS', 'UNICODE');
       fileData = new Uint8Array(sjisArray);
-      fileOpts.type = 'text/csv';
+      fileOpts.type = fileContentType;
     } else {
-      fileData = translatedCSV;
+      fileData = data;
       fileOpts.encoding = 'UTF-8';
-      fileOpts.type = 'text/csv;charset=UTF-8';
+      fileOpts.type = `${fileContentType};charset=UTF-8`;
     }
 
-    // Download as a CSV file
+    // Download file
     const universalBOM = '\uFEFF';
     const csvFile = new Blob([universalBOM + fileData], fileOpts);
-    const fileName = `${contentInput.files[0].name.substring(0, contentInput.files[0].name.length - 4)}_TRANSLATED.csv`;
+    let previousExtension = contentInput.files[0].name.split('.');
+    previousExtension = previousExtension[previousExtension.length -1];
+    const fileName = `${contentInput.files[0].name.substring(0, contentInput.files[0].name.length - previousExtension.length -1)}_TRANSLATED.${previousExtension}`;
     saveAs(csvFile, fileName); // FileSaver
 
     // Unset loading mask
