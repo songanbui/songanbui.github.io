@@ -405,7 +405,7 @@ const _onSubmit = async () => {
 
     // Check EscapeChar
     const escapeCharInput = document.getElementById('input-escapechar').getElementsByClassName('input-text')[0];
-    const escapeChars = escapeCharInput.value;
+    const escapeChars = escapeCharInput.value.trim();
     let charsToEscape = escapeChars.split('|');
     if (charsToEscape.length === 1 && charsToEscape[0] === escapeChars) {
       charsToEscape = escapeChars.split('｜');
