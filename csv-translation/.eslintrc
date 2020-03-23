@@ -13,7 +13,8 @@
     "globals": {
         "Papa": true,
         "Encoding": true,
-        "saveAs": true
+        "saveAs": true,
+        "JSZip": true
     },
     "extends": "airbnb"
 }

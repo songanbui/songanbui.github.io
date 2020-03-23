@@ -342,6 +342,33 @@ const _translate = (content, dictionary, contentFormat, autosplit, charsToEscape
 };
 
 /**
+ * Generate a Blob object from String data.
+ * @param {String} data - the data to generate a Blob from.
+ * @param {String} contentType - the Content-Type of the Blob.
+ * @param {String} encoding - the Encoding of the Blob
+ * @private
+ */
+const _generateBlob = (data, contentType, encoding) => {
+  let fileData;
+  const fileOpts = {};
+  if (encoding === 'SJIS') {
+    // Encode in Shift-JIS
+    const strArray = Encoding.stringToCode(data);
+    const sjisArray = Encoding.convert(strArray, 'SJIS', 'UNICODE');
+    fileData = new Uint8Array(sjisArray);
+    fileOpts.type = contentType;
+  } else {
+    fileData = data;
+    fileOpts.encoding = 'UTF-8';
+    fileOpts.type = `${contentType};charset=UTF-8`;
+  }
+
+  // Download file
+  const universalBOM = '\uFEFF';
+  return new Blob([universalBOM + fileData], fileOpts);
+};
+
+/**
  * Handler of input 'change' event (i.e once a file has been selected).
  * @param {Element} element - Either context(#input-content) or dictionary(#input-dictionary)
  * @returns {Function} onDictionaryFileSelection
@@ -449,8 +476,11 @@ const _onSubmit = async () => {
         fileContentType = 'text/csv';
         break;
       default:
-        // Keep string as-is
-        data = translation;
+        if (translation[0].length > 1) {
+          data = translation[0];
+        } else {
+          data = translation[0][0];
+        }
         fileContentType = contentInput.files[0].type;
         break;
     }
@@ -459,27 +489,28 @@ const _onSubmit = async () => {
     const encodingSelector = document.getElementById('select-encoding');
     const encoding = encodingSelector.value;
 
-    let fileData;
-    const fileOpts = {};
-    if (encoding === 'SJIS') {
-      // Encode in Shift-JIS
-      const strArray = Encoding.stringToCode(data);
-      const sjisArray = Encoding.convert(strArray, 'SJIS', 'UNICODE');
-      fileData = new Uint8Array(sjisArray);
-      fileOpts.type = fileContentType;
-    } else {
-      fileData = data;
-      fileOpts.encoding = 'UTF-8';
-      fileOpts.type = `${fileContentType};charset=UTF-8`;
+    // Check input file extension
+    let fileExtension = contentInput.files[0].name.split('.');
+    fileExtension = fileExtension[fileExtension.length -1];
+
+    // Generate blob to be saved
+    let blob, fileName;
+    if (typeof data === 'string') {
+      blob = _generateBlob(data, fileContentType, encoding);
+      fileName = `${contentInput.files[0].name.substring(0, contentInput.files[0].name.length - fileExtension.length -1)}_TRANSLATED.${fileExtension}`;
+    } else if (Array.isArray(data)) {
+      const dataBlobs = data.map(item => _generateBlob(item, fileContentType, encoding));
+      const zip = new JSZip();
+      dataBlobs.forEach((item, idx) => {
+        const itemFileName = `${contentInput.files[0].name.substring(0, contentInput.files[0].name.length - fileExtension.length -1)}_TRANSLATED_${idx}.${fileExtension}`;
+        zip.file(itemFileName, item);
+      });
+      blob = await zip.generateAsync({type: 'blob'});
+      fileName = `${contentInput.files[0].name}.TRANSLATED.zip`;
     }
 
-    // Download file
-    const universalBOM = '\uFEFF';
-    const csvFile = new Blob([universalBOM + fileData], fileOpts);
-    let previousExtension = contentInput.files[0].name.split('.');
-    previousExtension = previousExtension[previousExtension.length -1];
-    const fileName = `${contentInput.files[0].name.substring(0, contentInput.files[0].name.length - previousExtension.length -1)}_TRANSLATED.${previousExtension}`;
-    saveAs(csvFile, fileName); // FileSaver
+    // Save the blob
+    saveAs(blob, fileName); // FileSaver
 
     // Unset loading mask
     loadingMask.classList.remove('active');
