@@ -12,16 +12,14 @@
  * @returns {Promise}
  * @private
  */
-const _parseHTMLFile = async (file) => {
-  return new Promise((resolve) => {
-    const r = new FileReader();
-    r.onload = function (e) {
-      const contents = e.target.result;
-      resolve(contents);
-    };
-    r.readAsText(file);
-  });
-};
+const _parseHTMLFile = async (file) => new Promise((resolve) => {
+  const r = new FileReader();
+  r.onload = function (e) {
+    const contents = e.target.result;
+    resolve(contents);
+  };
+  r.readAsText(file);
+});
 
 /**
  * Parse a CSV File into a CSV Object (Papaparse).
@@ -29,13 +27,11 @@ const _parseHTMLFile = async (file) => {
  * @returns {Promise}
  * @private
  */
-const _parseCSVFile = async (file) => {
-  return new Promise(((resolve) => {
-    Papa.parse(file, {
-      complete: resolve,
-    });
-  }));
-};
+const _parseCSVFile = async (file) => new Promise(((resolve) => {
+  Papa.parse(file, {
+    complete: resolve,
+  });
+}));
 
 const _findInDictionary = (value, dictionary) => {
   let result = value;
@@ -176,14 +172,9 @@ const _translateUnit = (currentUnit, dictionary) => {
 const _translate = (content, dictionary, contentFormat, autosplit, charsToEscape) => {
   // Compute options specific to CSV format
   let startIndex = 0; // Index of row from where to start the translation
-  let multipleLanguages = false;
   switch (contentFormat) {
     case 'PowerCMS':
       startIndex = 1;
-      break;
-    case 'MultipleLanguages':
-      startIndex = 0;
-      multipleLanguages = true;
       break;
     default:
     case 'Standard':
@@ -192,13 +183,13 @@ const _translate = (content, dictionary, contentFormat, autosplit, charsToEscape
   }
 
   // If multiple languages, split the dictionaries per language
-  let dictionaries = [];
+  const multipleLanguages = dictionary[0].length > 2;
+  // let multipleLanguages = false;
+  const dictionaries = [];
   if (multipleLanguages) {
     const numberOfLanguages = dictionary[0].length - 1;
     for (let d = 0; d < numberOfLanguages; d++) {
-      let dic = dictionary.map((fullDic) => {
-        return [fullDic[0], fullDic[d+1]];
-      });
+      const dic = dictionary.map((fullDic) => [fullDic[0], fullDic[d + 1]]);
       dictionaries.push(dic);
     }
   } else {
@@ -207,13 +198,12 @@ const _translate = (content, dictionary, contentFormat, autosplit, charsToEscape
 
   // Split dictionary cells containing multiple lines in 1 cell/line
   if (autosplit === true) {
-    dictionaries.forEach((dictionary, dicIndex) => {
-
+    dictionaries.forEach((dic, dicIndex) => {
       // Loop in dictionary translation
-      const length = dictionary.length;
+      const { length } = dic;
       for (let r = 0; r < length; r++) {
-        let current = dictionary[r][0];
-        let translation = dictionary[r][1];
+        const current = dic[r][0];
+        const translation = dic[r][1];
 
         if (current !== undefined && translation !== undefined) {
           const currentSplits = current.split(/[\r\n]+/gm);
@@ -221,10 +211,10 @@ const _translate = (content, dictionary, contentFormat, autosplit, charsToEscape
           if (currentSplits.length > 1) {
             if (currentSplits.length === translationSplits.length) {
               for (let s = 0; s < currentSplits.length; s++) {
-                dictionary.push([currentSplits[s].trim(), translationSplits[s].trim()]);
+                dic.push([currentSplits[s].trim(), translationSplits[s].trim()]);
               }
             } else {
-              console.error(`Autosplit error: could not split multi-lines cell on Column ${dicIndex+2} Row ${r+1} of the dictionary.`);
+              console.error(`Autosplit error: could not split multi-lines cell on Column ${dicIndex + 2} Row ${r + 1} of the dictionary.`);
             }
           }
         }
@@ -236,12 +226,13 @@ const _translate = (content, dictionary, contentFormat, autosplit, charsToEscape
   /** Escape characters on first position of each dictionary cell
   /** ---- * */
   if (charsToEscape.length > 0) {
-    dictionaries.forEach((dictionary, dicIndex) => {
+    dictionaries.forEach((dic) => {
       // Loop in dictionary translation
-      for (let r = 0; r < dictionary.length; r++) {
-        for (let c = 0; c < dictionary[r].length; c++) {
-          if (dictionary[r][c] !== undefined && charsToEscape.indexOf(dictionary[r][c].charAt(0)) !== -1) {
-            dictionary[r][c] = dictionary[r][c].substr(1);
+      for (let r = 0; r < dic.length; r++) {
+        for (let c = 0; c < dic[r].length; c++) {
+          if (dic[r][c] !== undefined && charsToEscape.indexOf(dic[r][c].charAt(0)) !== -1) {
+            // eslint-disable-next-line no-param-reassign
+            dic[r][c] = dic[r][c].substr(1);
           }
         }
       }
@@ -251,26 +242,22 @@ const _translate = (content, dictionary, contentFormat, autosplit, charsToEscape
   /** ---- * */
   /** Reorder dictionary by biggest length value * */
   /** ---- * */
-  dictionaries.forEach((dictionary) => {
-    dictionary.sort((a, b) => b[0].length - a[0].length);
+  dictionaries.forEach((dic) => {
+    dic.sort((a, b) => b[0].length - a[0].length);
   });
 
   /** ---- * */
   /** Translation algorithm * */
   /** ---- * */
-  const translation = content.slice(0, startIndex);
-  for (let r = startIndex; r < content.length; r++) {
-    const currentRow = content[r];
-    const translatedRow = [];
+  const translations = [];
+  dictionaries.forEach((dic) => {
+    const translation = content.slice(0, startIndex);
 
-    // If multiple languages, we only translate the first column of the Content CSV and keep it in result
-    if (multipleLanguages) {
-      translatedRow.push(currentRow[0]);
-    }
+    for (let r = startIndex; r < content.length; r++) {
+      const currentRow = content[r];
+      const translatedRow = [];
 
-    // Translate each cell of the row
-    dictionaries.forEach((dictionary) => {
-      for (let c = 0; c < (multipleLanguages ? 1 : currentRow.length); c++) {
+      for (let c = 0; c < currentRow.length; c++) {
         const currentCell = currentRow[c];
         let translatedCell;
 
@@ -297,13 +284,13 @@ const _translate = (content, dictionary, contentFormat, autosplit, charsToEscape
                   // Check if parsed object is an Array
                   if (Array.isArray(parsedLine)) {
                     // Check all units are object formatted in an expected way
-                    const valid = parsedLine.every(unit => typeof unit === 'object' && typeof unit.type === 'string');
+                    const valid = parsedLine.every((unit) => typeof unit === 'object' && typeof unit.type === 'string');
                     if (valid) {
                       // Translate each unit.content
                       const translatedArray = [];
                       for (let pl = 0; pl < parsedLine.length; pl++) {
                         const currentUnit = parsedLine[pl];
-                        translatedArray.push(_translateUnit(currentUnit, dictionary));
+                        translatedArray.push(_translateUnit(currentUnit, dic));
                       }
                       translatedLine = JSON.stringify(translatedArray);
                     } else {
@@ -311,14 +298,14 @@ const _translate = (content, dictionary, contentFormat, autosplit, charsToEscape
                       translatedLine = currentLine;
                     }
                   } else if (typeof parsedLine === 'object') { // Check if parsed object is an Object
-                    translatedLine = JSON.stringify(_translateUnit(parsedLine, dictionary));
+                    translatedLine = JSON.stringify(_translateUnit(parsedLine, dic));
                   } else {
                     // Translate value as-is
-                    translatedLine = _findInDictionary(currentLine, dictionary);
+                    translatedLine = _findInDictionary(currentLine, dic);
                   }
                 } catch (error) {
                   // Translate value as-is
-                  translatedLine = _findInDictionary(currentLine, dictionary);
+                  translatedLine = _findInDictionary(currentLine, dic);
                 }
               }
 
@@ -327,18 +314,18 @@ const _translate = (content, dictionary, contentFormat, autosplit, charsToEscape
             translatedCell = translatedLines.join('\n');
           } else {
             // Translate value as-is
-            translatedCell = _findInDictionary(currentCell, dictionary);
+            translatedCell = _findInDictionary(currentCell, dic);
           }
         }
 
         translatedRow.push(translatedCell);
       }
 
-    });
-
-    translation.push(translatedRow);
-  }
-  return translation;
+      translation.push(translatedRow);
+    }
+    translations.push(translation);
+  });
+  return translations;
 };
 
 /**
@@ -374,7 +361,7 @@ const _generateBlob = (data, contentType, encoding) => {
  * @returns {Function} onDictionaryFileSelection
  * @private
  */
-const _onFileSelection = (element => function onDictionaryFileSelection(event) {
+const _onFileSelection = ((element) => function onDictionaryFileSelection(event) {
   const label = element.getElementsByClassName('input-path')[0];
 
   // Check a valid file has been selected
@@ -437,49 +424,60 @@ const _onSubmit = async () => {
     if (charsToEscape.length === 1 && charsToEscape[0] === escapeChars) {
       charsToEscape = escapeChars.split('｜');
     }
-    charsToEscape = charsToEscape.filter(item => item);
+    charsToEscape = charsToEscape.filter((item) => item);
 
     // Parse content
-    let content;
+    let parsed;
     switch (contentInput.files[0].type) {
       case 'text/csv':
       case 'application/vnd.ms-excel':
+        // eslint-disable-next-line no-case-declarations
         const parsedCSV = await _parseCSVFile(contentInput.files[0]);
-        content = parsedCSV.data;
+        parsed = parsedCSV.data;
         break;
       default:
+        // eslint-disable-next-line no-case-declarations
         const defaultParsed = await _parseHTMLFile(contentInput.files[0]);
-        content = [[defaultParsed]];
+        parsed = [[defaultParsed]];
         break;
     }
 
     // Parse dictionary
-    const dictionary = await _parseCSVFile(dictionaryInput.files[0]);
+    const dic = await _parseCSVFile(dictionaryInput.files[0]);
 
     // Translate
-    const translation = await _translate(content, dictionary.data, format, autosplit, charsToEscape);
+    const translation = await _translate(parsed, dic.data, format, autosplit, charsToEscape);
 
     // Check selected quoteChar
     const quoteCharInput = document.getElementById('input-quotechar').getElementsByClassName('input-text')[0];
     const quoteChar = quoteCharInput.value;
 
     // Check Data and Content-Type of output file
-    let data, fileContentType;
+    let data;
+    let fileContentType;
     switch (contentInput.files[0].type) {
       case 'text/csv':
       case 'application/vnd.ms-excel':
         // Parse back to CSV string
-        data = Papa.unparse(translation, {
-          quotes: false,
-          quoteChar: (quoteChar.length === 1) ? quoteChar : '"',
-        });
+        if (translation.length > 1) {
+          data = translation.map((t) => Papa.unparse(t, {
+            quotes: false,
+            quoteChar: (quoteChar.length === 1) ? quoteChar : '"',
+          }));
+        } else {
+          data = Papa.unparse(translation[0], {
+            quotes: false,
+            quoteChar: (quoteChar.length === 1) ? quoteChar : '"',
+          });
+        }
         fileContentType = 'text/csv';
         break;
       default:
-        if (translation[0].length > 1) {
-          data = translation[0];
+        if (translation.length > 1) {
+          data = translation.map((t) => t[0][0]);
         } else {
-          data = translation[0][0];
+          // eslint-disable-next-line prefer-destructuring
+          data = translation[0][0][0];
         }
         fileContentType = contentInput.files[0].type;
         break;
@@ -491,21 +489,22 @@ const _onSubmit = async () => {
 
     // Check input file extension
     let fileExtension = contentInput.files[0].name.split('.');
-    fileExtension = fileExtension[fileExtension.length -1];
+    fileExtension = fileExtension[fileExtension.length - 1];
 
     // Generate blob to be saved
-    let blob, fileName;
+    let blob;
+    let fileName;
     if (typeof data === 'string') {
       blob = _generateBlob(data, fileContentType, encoding);
-      fileName = `${contentInput.files[0].name.substring(0, contentInput.files[0].name.length - fileExtension.length -1)}_TRANSLATED.${fileExtension}`;
+      fileName = `${contentInput.files[0].name.substring(0, contentInput.files[0].name.length - fileExtension.length - 1)}_TRANSLATED.${fileExtension}`;
     } else if (Array.isArray(data)) {
-      const dataBlobs = data.map(item => _generateBlob(item, fileContentType, encoding));
+      const dataBlobs = data.map((item) => _generateBlob(item, fileContentType, encoding));
       const zip = new JSZip();
       dataBlobs.forEach((item, idx) => {
-        const itemFileName = `${contentInput.files[0].name.substring(0, contentInput.files[0].name.length - fileExtension.length -1)}_TRANSLATED_${idx}.${fileExtension}`;
+        const itemFileName = `${contentInput.files[0].name.substring(0, contentInput.files[0].name.length - fileExtension.length - 1)}_TRANSLATED_${idx + 1}.${fileExtension}`;
         zip.file(itemFileName, item);
       });
-      blob = await zip.generateAsync({type: 'blob'});
+      blob = await zip.generateAsync({ type: 'blob' });
       fileName = `${contentInput.files[0].name}.TRANSLATED.zip`;
     }
 
