@@ -7,12 +7,12 @@
 */
 
 /**
- * Parse an HTML file into a readable String.
+ * Parse a file into a readable String.
  * @param {File} file
  * @returns {Promise}
  * @private
  */
-const _parseHTMLFile = async (file) => new Promise((resolve) => {
+const _parseFile = async (file) => new Promise((resolve) => {
   const r = new FileReader();
   r.onload = function (e) {
     const contents = e.target.result;
@@ -68,7 +68,7 @@ const _findInDictionary = (value, dictionary) => {
   return result;
 };
 
-const _translateUnit = (currentUnit, dictionary) => {
+const _translateUnitPowerCMS = (currentUnit, dictionary) => {
   const translatedItem = JSON.parse(JSON.stringify(currentUnit));
 
   switch (currentUnit.type.toLowerCase()) {
@@ -159,6 +159,41 @@ const _translateUnit = (currentUnit, dictionary) => {
   return translatedItem;
 };
 
+const _translateUnitCraftCMS = (currentUnit, dictionary) => {
+  const translatedItem = JSON.parse(JSON.stringify(currentUnit));
+
+  switch (currentUnit.type.toLowerCase()) {
+    case 'headline': {
+      translatedItem.fields.headline_text = _findInDictionary(currentUnit.fields.headline_text, dictionary);
+      break;
+    }
+    case 'link': {
+      translatedItem.fields.link_text = _findInDictionary(currentUnit.fields.link_text, dictionary);
+      break;
+    }
+    case 'html': {
+      const noLineBreak = currentUnit.fields.html_text.replace(/(<br>\n|<br>)/gm, '');
+      translatedItem.fields.html_text = _findInDictionary(noLineBreak, dictionary);
+      break;
+    }
+    case 'richtext': {
+      const noLineBreak = currentUnit.fields.richtext_text.replace(/(<br>\n|<br>)/gm, '');
+      translatedItem.fields.richtext_text = _findInDictionary(noLineBreak, dictionary);
+      break;
+    }
+    case 'image_text': {
+      const noLineBreak = currentUnit.fields.image_text_text.replace(/(<br>\n|<br>)/gm, '');
+      translatedItem.fields.image_text_text = _findInDictionary(noLineBreak, dictionary);
+      break;
+    }
+    default: {
+      // NO OP
+    }
+  }
+
+  return translatedItem;
+};
+
 /**
  * Translate a CSV content file using a CSV dictionary file.
  * @param {Array} content
@@ -170,18 +205,6 @@ const _translateUnit = (currentUnit, dictionary) => {
  * @private
  */
 const _translate = (content, dictionary, contentFormat, autosplit, charsToEscape) => {
-  // Compute options specific to CSV format
-  let startIndex = 0; // Index of row from where to start the translation
-  switch (contentFormat) {
-    case 'PowerCMS':
-      startIndex = 1;
-      break;
-    default:
-    case 'Standard':
-      startIndex = 0;
-      break;
-  }
-
   // If multiple languages, split the dictionaries per language
   const multipleLanguages = dictionary[0].length > 2;
   // let multipleLanguages = false;
@@ -251,79 +274,148 @@ const _translate = (content, dictionary, contentFormat, autosplit, charsToEscape
   /** ---- * */
   const translations = [];
   dictionaries.forEach((dic) => {
-    const translation = content.slice(0, startIndex);
+    switch (contentFormat) {
+      /* ===== CraftCMS JSON Algorithm ==== */
+      case 'CraftCMS': {
+        const parsed = JSON.parse(content);
+        const translation = JSON.parse(content);
 
-    for (let r = startIndex; r < content.length; r++) {
-      const currentRow = content[r];
-      const translatedRow = [];
+        // Check if parsed object is an Array, then loop
+        if (Array.isArray(parsed)) {
+          for (let e = 0; e < parsed.length; e++) {
+            const entry = parsed[e];
+            const keys = Object.keys(entry);
 
-      for (let c = 0; c < currentRow.length; c++) {
-        const currentCell = currentRow[c];
-        let translatedCell;
-
-        // Check if cell is empty
-        if (currentCell === '') {
-          translatedCell = currentCell;
-        } else {
-          // Check if cell is multi-line
-          const lines = currentCell.split('\n');
-          if (lines.length > 1) {
-            const translatedLines = [];
-            for (let l = 0; l < lines.length; l++) {
-              const currentLine = lines[l];
-              let translatedLine = '';
-
-              // Check if line is empty
-              if (currentLine === '') {
-                translatedLine = currentLine;
-              } else {
-                // Try to parse the line as JSON
-                try {
-                  const parsedLine = JSON.parse(currentLine);
-
-                  // Check if parsed object is an Array
-                  if (Array.isArray(parsedLine)) {
-                    // Check all units are object formatted in an expected way
-                    const valid = parsedLine.every((unit) => typeof unit === 'object' && typeof unit.type === 'string');
-                    if (valid) {
-                      // Translate each unit.content
-                      const translatedArray = [];
-                      for (let pl = 0; pl < parsedLine.length; pl++) {
-                        const currentUnit = parsedLine[pl];
-                        translatedArray.push(_translateUnit(currentUnit, dic));
-                      }
-                      translatedLine = JSON.stringify(translatedArray);
-                    } else {
-                      // Not expected (no implementation). Keep as-is.
-                      translatedLine = currentLine;
+            // Loop in all properties of each entry
+            for (let k = 0; k < keys.length; k++) {
+              const key = keys[k];
+              switch (typeof entry[key]) {
+                case 'object': {
+                  if (key === 'tipunit') {
+                    // Loop in all units
+                    const unitKeys = Object.keys(entry[key]);
+                    for (let u = 0; u < unitKeys.length; u++) {
+                      const unitKey = unitKeys[u];
+                      const unit = entry[key][unitKey];
+                      translation[e][key][unitKey] = _translateUnitCraftCMS(unit, dic);
                     }
-                  } else if (typeof parsedLine === 'object') { // Check if parsed object is an Object
-                    translatedLine = JSON.stringify(_translateUnit(parsedLine, dic));
                   } else {
-                    // Translate value as-is
-                    translatedLine = _findInDictionary(currentLine, dic);
+                    // NO OP
                   }
-                } catch (error) {
+                  break;
+                }
+                case 'string': {
                   // Translate value as-is
-                  translatedLine = _findInDictionary(currentLine, dic);
+                  translation[e][key] = _findInDictionary(entry[key], dic);
+                  break;
+                }
+                default: {
+                  // NO OP
                 }
               }
-
-              translatedLines.push(translatedLine);
             }
-            translatedCell = translatedLines.join('\n');
-          } else {
-            // Translate value as-is
-            translatedCell = _findInDictionary(currentCell, dic);
           }
-        }
 
-        translatedRow.push(translatedCell);
+          translations.push(translation);
+        } else {
+          // unexpected
+          throw new Error('Unexpected non-array JSON');
+        }
+        break;
       }
 
-      translation.push(translatedRow);
+      /* ===== PowerCMS CSV Algorithm ==== */
+      default:
+      case 'Standard':
+      case 'PowerCMS': {
+        // Compute options specific to CSV format
+        let startIndex = 0; // Index of row from where to start the translation
+        switch (contentFormat) {
+          case 'PowerCMS':
+            startIndex = 1;
+            break;
+          default:
+          case 'Standard':
+            startIndex = 0;
+            break;
+        }
+
+        const translation = content.slice(0, startIndex);
+
+        for (let r = startIndex; r < content.length; r++) {
+          const currentRow = content[r];
+          const translatedRow = [];
+
+          for (let c = 0; c < currentRow.length; c++) {
+            const currentCell = currentRow[c];
+            let translatedCell;
+
+            // Check if cell is empty
+            if (currentCell === '') {
+              translatedCell = currentCell;
+            } else {
+              // Check if cell is multi-line
+              const lines = currentCell.split('\n');
+              if (lines.length > 1) {
+                const translatedLines = [];
+                for (let l = 0; l < lines.length; l++) {
+                  const currentLine = lines[l];
+                  let translatedLine = '';
+
+                  // Check if line is empty
+                  if (currentLine === '') {
+                    translatedLine = currentLine;
+                  } else {
+                    // Try to parse the line as JSON
+                    try {
+                      const parsedLine = JSON.parse(currentLine);
+
+                      // Check if parsed object is an Array
+                      if (Array.isArray(parsedLine)) {
+                        // Check all units are object formatted in an expected way
+                        const valid = parsedLine.every((unit) => typeof unit === 'object' && typeof unit.type === 'string');
+                        if (valid) {
+                          // Translate each unit.content
+                          const translatedArray = [];
+                          for (let pl = 0; pl < parsedLine.length; pl++) {
+                            const currentUnit = parsedLine[pl];
+                            translatedArray.push(_translateUnitPowerCMS(currentUnit, dic));
+                          }
+                          translatedLine = JSON.stringify(translatedArray);
+                        } else {
+                          // Not expected (no implementation). Keep as-is.
+                          translatedLine = currentLine;
+                        }
+                      } else if (typeof parsedLine === 'object') { // Check if parsed object is an Object
+                        translatedLine = JSON.stringify(_translateUnitPowerCMS(parsedLine, dic));
+                      } else {
+                        // Translate value as-is
+                        translatedLine = _findInDictionary(currentLine, dic);
+                      }
+                    } catch (error) {
+                      // Translate value as-is
+                      translatedLine = _findInDictionary(currentLine, dic);
+                    }
+                  }
+
+                  translatedLines.push(translatedLine);
+                }
+                translatedCell = translatedLines.join('\n');
+              } else {
+                // Translate value as-is
+                translatedCell = _findInDictionary(currentCell, dic);
+              }
+            }
+
+            translatedRow.push(translatedCell);
+          }
+
+          translation.push(translatedRow);
+        }
+        translations.push(translation);
+        break;
+      }
     }
-    translations.push(translation);
   });
   return translations;
 };
@@ -435,9 +527,13 @@ const _onSubmit = async () => {
         const parsedCSV = await _parseCSVFile(contentInput.files[0]);
         parsed = parsedCSV.data;
         break;
+      case 'application/json':
+        parsed = await _parseFile(contentInput.files[0]);
+        break;
+      case 'text/html':
       default:
         // eslint-disable-next-line no-case-declarations
-        const defaultParsed = await _parseHTMLFile(contentInput.files[0]);
+        const defaultParsed = await _parseFile(contentInput.files[0]);
         parsed = [[defaultParsed]];
         break;
     }
@@ -472,6 +568,15 @@ const _onSubmit = async () => {
         }
         fileContentType = 'text/csv';
         break;
+      case 'application/json':
+        if (translation.length > 1) {
+          data = translation.map((t) => JSON.stringify(t));
+        } else {
+          data = JSON.stringify(translation[0]);
+        }
+        fileContentType = contentInput.files[0].type;
+        break;
+      case 'text/html':
       default:
         if (translation.length > 1) {
           data = translation.map((t) => t[0][0]);
