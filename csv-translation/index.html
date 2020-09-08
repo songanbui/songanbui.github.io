@@ -27,15 +27,16 @@
                 <label for="select-format">Select translation mode</label>
                 <select id="select-format" class="pure-input-1-2">
                     <option value="Standard" selected>Standard</option>
-                    <option value="PowerCMS">PowerCMS CSV</option>
+                    <option value="PowerCMS">PowerCMS (CSV)</option>
+                    <option value="CraftCMS">CraftCMS (JSON)</option>
                     <!--<option value="UTF8">Movable</option>-->
                 </select>
             </div>
 
             <div id="input-content" class="container">
-                <input class="input-path" type="text" placeholder="Select Content CSV or HTML file..." readonly>
+                <input class="input-path" type="text" placeholder="Select Content file..." readonly>
                 <button class="input-button pure-button">Browse</button>
-                <input class="input-file" type="file" accept="text/csv, text/html">
+                <input class="input-file" type="file">
             </div>
 
             <div id="input-dictionary" class="container">
