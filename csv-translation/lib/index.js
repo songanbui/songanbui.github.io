@@ -126,14 +126,14 @@ const _translateUnitPowerCMS = (currentUnit, dictionary) => {
       break;
     }
     case 'html': {
-      const noLineBreak = currentUnit.content.replace(/(<br>\n|<br>)/gm, '');
+      const noLineBreak = currentUnit.content.replace(/(<br>\n|<br>|<br \/>)/gm, '');
       // noLineBreak = noLineBreak.content.replace(/(<br>)/gm, '');
       // var noLineBreak = currentUnit['content'].replace(/(\r\n|\n|\r|<br>)/gm, "");
       translatedItem.content = _findInDictionary(noLineBreak, dictionary);
       break;
     }
     case 'rich-text': {
-      const noLineBreak = currentUnit.content.replace(/(<br>\n|<br>)/gm, '');
+      const noLineBreak = currentUnit.content.replace(/(<br>\n|<br>|<br \/>)/gm, '');
       // noLineBreak = noLineBreak.content.replace(/(<br>)/gm, '');
       // var noLineBreak = currentUnit['content'].replace(/(\r\n|\n|\r|<br>)/gm, "");
       translatedItem.content = _findInDictionary(noLineBreak, dictionary);
@@ -141,7 +141,7 @@ const _translateUnitPowerCMS = (currentUnit, dictionary) => {
     }
     case 'accordion': {
       translatedItem['accordion-title'] = _findInDictionary(currentUnit['accordion-title'], dictionary);
-      const noLineBreak = currentUnit['accordion-body'].replace(/(<br>\n|<br>)/gm, '');
+      const noLineBreak = currentUnit['accordion-body'].replace(/(<br>\n|<br>|<br \/>)/gm, '');
       // noLineBreak = noLineBreak['accordion-body'].replace(/(<br>)/gm, '');
       // var noLineBreak = currentUnit['accordion-body'].replace(/(\r\n|\n|\r|<br>)/gm, "");
       translatedItem['accordion-body'] = _findInDictionary(noLineBreak, dictionary);
@@ -172,17 +172,17 @@ const _translateUnitCraftCMS = (currentUnit, dictionary) => {
       break;
     }
     case 'html': {
-      const noLineBreak = currentUnit.fields.html_text.replace(/(<br>\n|<br>)/gm, '');
+      const noLineBreak = currentUnit.fields.html_text.replace(/(<br>\n|<br>|<br \/>)/gm, '');
       translatedItem.fields.html_text = _findInDictionary(noLineBreak, dictionary);
       break;
     }
     case 'richtext': {
-      const noLineBreak = currentUnit.fields.richtext_text.replace(/(<br>\n|<br>)/gm, '');
+      const noLineBreak = currentUnit.fields.richtext_text.replace(/(<br>\n|<br>|<br \/>)/gm, '');
       translatedItem.fields.richtext_text = _findInDictionary(noLineBreak, dictionary);
       break;
     }
     case 'image_text': {
-      const noLineBreak = currentUnit.fields.image_text_text.replace(/(<br>\n|<br>)/gm, '');
+      const noLineBreak = currentUnit.fields.image_text_text.replace(/(<br>\n|<br>|<br \/>)/gm, '');
       translatedItem.fields.image_text_text = _findInDictionary(noLineBreak, dictionary);
       break;
     }
@@ -291,7 +291,13 @@ const _translate = (content, dictionary, contentFormat, autosplit, charsToEscape
               const key = keys[k];
               switch (typeof entry[key]) {
                 case 'object': {
-                  if (key === 'tipunit') {
+                  // const unitTypes = ['tipunit', 'pageunit'];
+                  // if (unitTypes.indexOf(key) !== -1) {
+                  // } else {
+                  //   // NO OP
+                  // }
+
+                  try {
                     // Loop in all units
                     const unitKeys = Object.keys(entry[key]);
                     for (let u = 0; u < unitKeys.length; u++) {
@@ -299,7 +305,7 @@ const _translate = (content, dictionary, contentFormat, autosplit, charsToEscape
                       const unit = entry[key][unitKey];
                       translation[e][key][unitKey] = _translateUnitCraftCMS(unit, dic);
                     }
-                  } else {
+                  } catch (error) {
                     // NO OP
                   }
                   break;
