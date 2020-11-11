@@ -50,9 +50,9 @@ const _findInDictionary = (value, dictionary) => {
           // If partial match, replace and continue
           // If sentence finishes by 。(Japanese punctuation), add a space
           if (current.charAt(current.length - 1) === '。') {
-            result = result.replace(current, `${translation} `);
+            result = result.replace(new RegExp(current, "g"), `${translation} `);
           } else {
-            result = result.replace(current, translation);
+            result = result.replace(new RegExp(current, "g"), translation);
           }
         }
       }
