@@ -49,10 +49,12 @@ const _findInDictionary = (value, dictionary) => {
         } else if (value.indexOf(current) !== -1) {
           // If partial match, replace and continue
           // If sentence finishes by 。(Japanese punctuation), add a space
+          // NB: Escape all special characters for creating new RegExp
+          const regex = new RegExp(current.replace(/[-[\]{}()*+?.,\\^$|]/g, "\\$&"), 'g');
           if (current.charAt(current.length - 1) === '。') {
-            result = result.replace(new RegExp(current, "g"), `${translation} `);
+            result = result.replace(regex, `${translation} `);
           } else {
-            result = result.replace(new RegExp(current, "g"), translation);
+            result = result.replace(regex, translation);
           }
         }
       }
