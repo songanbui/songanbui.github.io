@@ -39,8 +39,8 @@ const _findInDictionary = (value, dictionary) => {
   if (typeof value === 'string' && value !== '') {
     // Look in dictionary translation
     for (let r = 0; r < dictionary.length; r++) {
-      const current = dictionary[r][0];
-      const translation = dictionary[r][1];
+      const current = dictionary[r][0] ? dictionary[r][0].trim() : '';
+      const translation = dictionary[r][1] ? dictionary[r][1].trim(): '';
       if ((typeof current === 'string') && current !== '') {
         if (current === result) {
           // If exact match, replace totally and break
